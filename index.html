@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>The Underground Cartographer</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Spectral:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --parchment: #f2e8cc;
+    --parchment-dark: #e8d5a3;
+    --ink: #2c1a0e;
+    --sepia: #8b5e3c;
+    --sepia-light: #c4956a;
+    --crimson: #8b1a1a;
+    --gold: #c9a227;
+    --bg: #120e06;
+    --bg2: #1a1208;
+    --map-paper: #d9c99a;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overflow:hidden; }
+  body {
+    background:var(--bg);
+    font-family:'Spectral',serif;
+    color:var(--parchment);
+    display:flex;
+    flex-direction:column;
+    height:100dvh;
+    touch-action:none;
+  }
+
+  /* ── HEADER ── */
+  header {
+    height:52px;
+    background:linear-gradient(180deg,#0e0a04,#1a1208);
+    border-bottom:2px solid var(--gold);
+    display:flex; align-items:center;
+    padding:0 14px; gap:10px;
+    flex-shrink:0; z-index:20;
+  }
+  .torch-icon { font-size:1.2rem; flex-shrink:0; }
+  .header-title { flex:1; min-width:0; }
+  .header-title h1 {
+    font-family:'Cinzel',serif; font-weight:900;
+    font-size:clamp(0.72rem,3.5vw,1.05rem);
+    color:var(--gold); letter-spacing:2px; text-transform:uppercase;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .header-title p { font-style:italic; color:var(--sepia-light); font-size:0.62rem; display:none; }
+  @media(min-width:480px){.header-title p{display:block;}}
+  .header-actions { display:flex; gap:6px; flex-shrink:0; }
+  .icon-btn {
+    width:38px; height:38px;
+    background:rgba(255,255,255,0.05);
+    border:1px solid rgba(201,162,39,0.5);
+    color:var(--gold); border-radius:4px;
+    cursor:pointer; font-size:1rem;
+    display:flex; align-items:center; justify-content:center;
+    transition:background 0.15s;
+  }
+  .icon-btn:active { background:rgba(201,162,39,0.2); }
+
+  /* ── MAIN ── */
+  .main {
+    flex:1; display:flex; overflow:hidden;
+    flex-direction:column; /* mobile: column */
+  }
+  @media(min-width:768px){
+    .main { flex-direction:row; }
+  }
+
+  /* ── MAP AREA ── */
+  .map-area {
+    flex:1; position:relative; overflow:hidden;
+    background: #c8b483;
+    touch-action:none;
+    min-height:0;
+  }
+  /* Parchment layered texture via pseudo-elements */
+  .map-area::before {
+    content:'';
+    position:absolute; inset:0; z-index:1; pointer-events:none;
+    background:
+      radial-gradient(ellipse at 15% 20%, rgba(180,140,80,0.55) 0%, transparent 55%),
+      radial-gradient(ellipse at 85% 75%, rgba(160,120,60,0.45) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, rgba(220,195,130,0.3) 0%, transparent 70%),
+      radial-gradient(ellipse at 70% 10%, rgba(140,100,50,0.35) 0%, transparent 40%),
+      radial-gradient(ellipse at 10% 85%, rgba(150,110,55,0.4) 0%, transparent 45%);
+  }
+  .map-area::after {
+    content:'';
+    position:absolute; inset:0; z-index:1; pointer-events:none;
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 59px, rgba(100,70,30,0.06) 59px, rgba(100,70,30,0.06) 60px),
+      repeating-linear-gradient(90deg, transparent, transparent 59px, rgba(100,70,30,0.06) 59px, rgba(100,70,30,0.06) 60px);
+  }
+  #map-svg { position:absolute; inset:0; width:100%; height:100%; z-index:3; cursor:grab; }
+
+  /* ── MODE BAR ── */
+  .mode-bar {
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    z-index:10; display:flex; gap:5px;
+    background:rgba(30,18,6,0.82); border:1px solid rgba(201,162,39,0.5);
+    padding:5px 8px; border-radius:6px; backdrop-filter:blur(6px);
+  }
+  .mode-btn {
+    font-family:'Cinzel',serif; font-size:0.65rem; letter-spacing:1px;
+    padding:7px 12px; border:1px solid rgba(201,162,39,0.3);
+    background:transparent; color:rgba(220,195,140,0.75);
+    cursor:pointer; text-transform:uppercase; transition:all 0.15s;
+    border-radius:3px; white-space:nowrap;
+  }
+  .mode-btn.active { border-color:var(--gold); color:var(--gold); background:rgba(201,162,39,0.15); }
+
+  /* ── FLOATING CONTROLS ── */
+  .zoom-controls {
+    position:absolute; bottom:14px; left:14px;
+    z-index:10; display:flex; flex-direction:column; gap:4px;
+  }
+  .zoom-btn {
+    width:40px; height:40px;
+    background:rgba(30,18,6,0.82); border:1px solid rgba(201,162,39,0.5);
+    color:var(--gold); font-size:1.3rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    border-radius:4px; transition:background 0.15s;
+  }
+  .zoom-btn:active { background:rgba(201,162,39,0.2); }
+
+  .compass {
+    position:absolute; bottom:14px; right:14px;
+    width:52px; height:52px; z-index:10; pointer-events:none; opacity:0.75;
+  }
+
+  .map-legend {
+    position:absolute; top:56px; right:10px;
+    background:rgba(30,18,6,0.82); border:1px solid rgba(201,162,39,0.45);
+    padding:8px 12px; z-index:10; backdrop-filter:blur(4px); border-radius:4px;
+  }
+  .map-legend h4 {
+    font-family:'Cinzel',serif; font-size:0.58rem; letter-spacing:2px;
+    color:var(--gold); text-transform:uppercase;
+    margin-bottom:6px; border-bottom:1px solid rgba(201,162,39,0.3); padding-bottom:4px;
+  }
+  .legend-line { display:flex; align-items:center; gap:6px; margin-bottom:3px; }
+  .legend-bar { width:18px; height:3px; border-radius:2px; }
+  .legend-name { font-size:0.7rem; color:var(--parchment-dark); font-family:'Spectral',serif; }
+
+  .coord-display {
+    position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
+    background:rgba(30,18,6,0.78); border:1px solid rgba(201,162,39,0.3);
+    padding:3px 10px; font-size:0.68rem; color:var(--sepia-light);
+    font-family:'Spectral',serif; z-index:10; pointer-events:none;
+    border-radius:3px; white-space:nowrap;
+  }
+  @media(max-width:767px){ .coord-display { display:none; } }
+
+  /* ── BOTTOM DRAWER (mobile) ── */
+  .drawer {
+    background:linear-gradient(180deg,#1c1408,#120e06);
+    border-top:2px solid var(--gold);
+    z-index:30;
+    display:flex; flex-direction:column;
+    transition:height 0.35s cubic-bezier(0.32,0.72,0,1);
+    flex-shrink:0;
+    height:52px; /* collapsed */
+    overflow:hidden;
+  }
+  .drawer.open { height:55vmax; max-height:62dvh; }
+
+  .drawer-handle {
+    height:52px; min-height:52px;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 16px; cursor:pointer; flex-shrink:0; user-select:none;
+    position:relative;
+  }
+  .handle-pip {
+    position:absolute; top:7px; left:50%; transform:translateX(-50%);
+    width:32px; height:4px; background:rgba(201,162,39,0.35); border-radius:2px;
+  }
+  .drawer-label { font-family:'Cinzel',serif; font-size:0.68rem; letter-spacing:2px; color:var(--gold); text-transform:uppercase; }
+  .drawer-chevron { color:var(--gold); font-size:0.85rem; transition:transform 0.3s; }
+  .drawer.open .drawer-chevron { transform:rotate(180deg); }
+
+  /* ── DESKTOP SIDEBAR ── */
+  @media(min-width:768px){
+    .drawer {
+      width:280px; height:auto !important;
+      border-top:none; border-right:2px solid var(--gold);
+      order:-1; flex-shrink:0; overflow:hidden;
+      flex-direction:column;
+    }
+    .drawer-handle { display:none; }
+  }
+
+  /* ── TABS ── */
+  .drawer-tabs {
+    display:flex; border-bottom:1px solid rgba(201,162,39,0.25);
+    flex-shrink:0;
+  }
+  .tab-btn {
+    flex:1; font-family:'Cinzel',serif; font-size:0.58rem; letter-spacing:1px;
+    text-transform:uppercase; padding:10px 4px;
+    background:transparent; border:none; color:var(--sepia-light);
+    cursor:pointer; border-bottom:2px solid transparent; transition:all 0.15s;
+  }
+  .tab-btn.active { color:var(--gold); border-bottom-color:var(--gold); }
+
+  .drawer-body {
+    flex:1; overflow-y:auto; overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:thin; scrollbar-color:var(--sepia) transparent;
+  }
+
+  .tab-panel { display:none; padding:14px; }
+  .tab-panel.active { display:block; }
+
+  /* ── FORMS ── */
+  .form-group { margin-bottom:10px; }
+  .form-group label { display:block; font-size:0.72rem; color:var(--sepia-light); font-family:'Cinzel',serif; letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; }
+  .form-group input, .form-group select {
+    width:100%; background:rgba(255,255,255,0.06);
+    border:1px solid rgba(201,162,39,0.4); color:var(--parchment);
+    padding:10px; font-family:'Spectral',serif; font-size:1rem;
+    outline:none; border-radius:3px; -webkit-appearance:none;
+    transition:border-color 0.2s;
+  }
+  .form-group input:focus, .form-group select:focus { border-color:var(--gold); }
+  .form-group input::placeholder { color:rgba(196,149,106,0.4); }
+  .coords-row { display:flex; gap:8px; }
+  .coords-row .form-group { flex:1; }
+
+  .btn {
+    font-family:'Cinzel',serif; font-size:0.7rem; letter-spacing:1px;
+    padding:9px 16px; border:1.5px solid var(--gold);
+    background:transparent; color:var(--gold);
+    cursor:pointer; transition:all 0.2s; text-transform:uppercase; border-radius:3px;
+  }
+  .btn:active { background:rgba(201,162,39,0.15); }
+  .btn.primary {
+    background:var(--crimson); border-color:var(--crimson);
+    color:var(--parchment); width:100%; padding:11px; font-size:0.75rem; margin-top:4px;
+  }
+  .btn.primary:active { background:#a52020; }
+
+  /* ── LINE ITEMS ── */
+  .line-item {
+    display:flex; align-items:center; gap:10px;
+    padding:9px 10px; border:1px solid rgba(201,162,39,0.15);
+    border-radius:4px; margin-bottom:5px; background:rgba(255,255,255,0.02);
+  }
+  .line-dot { width:13px; height:13px; border-radius:50%; flex-shrink:0; }
+  .line-name { flex:1; font-size:0.9rem; color:var(--parchment); font-family:'Spectral',serif; }
+  .line-count { font-size:0.7rem; color:var(--sepia-light); font-family:'Spectral',serif; }
+  .line-delete {
+    background:none; border:none; color:var(--sepia);
+    cursor:pointer; font-size:0.85rem; padding:6px 8px; border-radius:3px;
+    transition:color 0.15s;
+  }
+  .line-delete:active { color:var(--crimson); }
+  .new-line-form { display:flex; gap:8px; margin-top:10px; }
+  .new-line-form input {
+    flex:1; background:rgba(255,255,255,0.05);
+    border:1px solid rgba(201,162,39,0.4); color:var(--parchment);
+    padding:10px; font-family:'Spectral',serif; font-size:0.95rem;
+    outline:none; border-radius:3px;
+  }
+  .new-line-form input:focus { border-color:var(--gold); }
+  .new-line-form .btn { padding:10px 14px; }
+
+  /* ── STOP ITEMS ── */
+  .stop-item {
+    display:flex; align-items:center; gap:10px;
+    padding:9px 10px; border:1px solid rgba(201,162,39,0.1);
+    border-radius:4px; margin-bottom:4px;
+    cursor:pointer; background:rgba(255,255,255,0.02);
+    transition:background 0.1s;
+  }
+  .stop-item:active { background:rgba(201,162,39,0.08); }
+  .stop-icon { width:11px; height:11px; border-radius:50%; border:2px solid; flex-shrink:0; }
+  .stop-info { flex:1; min-width:0; }
+  .stop-name { font-size:0.9rem; color:var(--parchment); font-family:'Spectral',serif; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .stop-coords { font-size:0.68rem; color:var(--sepia-light); font-family:'Spectral',serif; }
+  .stop-delete {
+    background:none; border:none; color:var(--sepia);
+    cursor:pointer; font-size:0.8rem; padding:6px 8px; border-radius:3px; flex-shrink:0;
+  }
+  .stop-delete:active { color:var(--crimson); }
+
+  /* ── TOAST ── */
+  .toast {
+    position:fixed; bottom:70px; left:50%;
+    transform:translateX(-50%) translateY(10px);
+    background:rgba(10,7,2,0.96); border:1px solid var(--gold);
+    color:var(--parchment); padding:8px 18px;
+    font-size:0.76rem; font-style:italic;
+    z-index:100; opacity:0; transition:all 0.25s;
+    pointer-events:none; border-radius:4px;
+    white-space:nowrap; max-width:90vw; text-align:center;
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  @media(min-width:768px){ .toast { bottom:28px; } }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,0.75); z-index:60;
+    align-items:flex-end; justify-content:center;
+  }
+  .modal-overlay.open { display:flex; }
+  .modal {
+    background:linear-gradient(180deg,#1e1810,#120e06);
+    border:2px solid var(--gold); border-bottom:none;
+    border-radius:14px 14px 0 0;
+    padding:22px 18px; width:100%; max-width:540px;
+    animation:slideUp 0.25s ease;
+  }
+  @media(min-width:600px){
+    .modal-overlay { align-items:center; padding:20px; }
+    .modal { border-bottom:2px solid var(--gold); border-radius:6px; }
+  }
+  @keyframes slideUp { from{transform:translateY(30px);opacity:0;} to{transform:none;opacity:1;} }
+  .modal h3 { font-family:'Cinzel',serif; font-size:0.9rem; letter-spacing:2px; color:var(--gold); margin-bottom:12px; text-transform:uppercase; }
+  .modal textarea {
+    width:100%; height:100px;
+    background:rgba(255,255,255,0.04); border:1px solid rgba(201,162,39,0.4);
+    color:var(--parchment); padding:8px; font-family:'Courier New',monospace;
+    font-size:0.7rem; resize:none; outline:none; border-radius:3px;
+  }
+  .modal-actions { display:flex; gap:8px; margin-top:12px; justify-content:flex-end; flex-wrap:wrap; }
+
+  ::-webkit-scrollbar { width:5px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--sepia); border-radius:3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="torch-icon">🔥</span>
+  <div class="header-title">
+    <h1>The Underground Cartographer</h1>
+    <p>Subway Planning for the Realm Below</p>
+  </div>
+  <div class="header-actions">
+    <button class="icon-btn" onclick="resetView()" title="Reset View">⊕</button>
+    <button class="icon-btn" onclick="exportJpg()" title="Save as JPG">🖼</button>
+    <button class="icon-btn" onclick="openExportModal()" title="Export / Import">⚙</button>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- MAP -->
+  <div class="map-area" id="map-area">
+    <div class="mode-bar">
+      <button class="mode-btn active" id="btn-pan" onclick="setMode('pan')">✥ Pan</button>
+      <button class="mode-btn" id="btn-connect" onclick="setMode('connect')">⛓ Connect</button>
+      <button class="mode-btn" id="btn-delete-conn" onclick="setMode('delete-conn')">✂ Cut</button>
+    </div>
+
+    <svg id="map-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+
+    <div class="map-legend" id="map-legend" style="display:none">
+      <h4>⚑ Lines</h4>
+      <div id="legend-lines"></div>
+    </div>
+
+    <svg class="compass" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="50" cy="50" r="46" fill="none" stroke="#c9a227" stroke-width="1" opacity="0.5"/>
+      <polygon points="50,8 44,50 50,44 56,50" fill="#c9a227" opacity="0.9"/>
+      <polygon points="50,92 44,50 50,56 56,50" fill="#8b5e3c" opacity="0.7"/>
+      <polygon points="8,50 50,44 44,50 50,56" fill="#8b5e3c" opacity="0.7"/>
+      <polygon points="92,50 50,44 56,50 50,56" fill="#8b5e3c" opacity="0.7"/>
+      <circle cx="50" cy="50" r="5" fill="#c9a227" opacity="0.8"/>
+      <text x="50" y="5" text-anchor="middle" fill="#c9a227" font-size="10" font-family="Cinzel,serif">N</text>
+      <text x="50" y="98" text-anchor="middle" fill="#8b5e3c" font-size="9" font-family="Cinzel,serif">S</text>
+      <text x="96" y="53" text-anchor="middle" fill="#8b5e3c" font-size="9" font-family="Cinzel,serif">E</text>
+      <text x="4" y="53" text-anchor="middle" fill="#8b5e3c" font-size="9" font-family="Cinzel,serif">W</text>
+    </svg>
+
+    <div class="zoom-controls">
+      <button class="zoom-btn" onclick="zoom(1.2)">+</button>
+      <button class="zoom-btn" onclick="zoom(0.8)">−</button>
+    </div>
+
+    <div class="coord-display" id="coord-display">X: 0 · Z: 0</div>
+  </div>
+
+  <!-- DRAWER / SIDEBAR -->
+  <div class="drawer" id="drawer">
+    <div class="drawer-handle" onclick="toggleDrawer()">
+      <div class="handle-pip"></div>
+      <span class="drawer-label">Stations &amp; Lines</span>
+      <span class="drawer-chevron">▲</span>
+    </div>
+
+    <div class="drawer-tabs">
+      <button class="tab-btn active" onclick="switchTab('stations')">Stations</button>
+      <button class="tab-btn" onclick="switchTab('add')">+ Add</button>
+      <button class="tab-btn" onclick="switchTab('lines')">Lines</button>
+    </div>
+
+    <div class="drawer-body">
+
+      <!-- STATIONS -->
+      <div class="tab-panel active" id="tab-stations">
+        <div id="stops-panel"></div>
+      </div>
+
+      <!-- ADD -->
+      <div class="tab-panel" id="tab-add">
+        <div class="form-group">
+          <label>Station Name</label>
+          <input id="stop-name" type="text" placeholder="e.g. Irongate Keep" />
+        </div>
+        <div class="coords-row">
+          <div class="form-group">
+            <label>X Coord</label>
+            <input id="stop-x" type="number" placeholder="0" inputmode="numeric" />
+          </div>
+          <div class="form-group">
+            <label>Z Coord</label>
+            <input id="stop-z" type="number" placeholder="0" inputmode="numeric" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Assign to Line</label>
+          <select id="stop-line"><option value="">— Unassigned —</option></select>
+        </div>
+        <button class="btn primary" onclick="addStop()">✦ Place Station</button>
+      </div>
+
+      <!-- LINES -->
+      <div class="tab-panel" id="tab-lines">
+        <div id="lines-list"></div>
+        <div class="new-line-form">
+          <input id="new-line-name" type="text" placeholder="New line name…" />
+          <button class="btn" onclick="addLine()">+</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal-overlay" id="export-modal">
+  <div class="modal">
+    <h3>⚙ Export Cartograph</h3>
+    <p style="font-style:italic;color:var(--sepia-light);font-size:0.76rem;margin-bottom:8px;">Copy this JSON to restore your map later.</p>
+    <textarea id="export-text" readonly></textarea>
+    <div style="margin-top:10px;">
+      <p style="font-style:italic;color:var(--sepia-light);font-size:0.68rem;margin-bottom:6px;">Import from saved scroll:</p>
+      <textarea id="import-text" placeholder="Paste JSON here to import…" style="height:65px;"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="copyExport()">Copy</button>
+      <button class="btn" onclick="importData()">Import</button>
+      <button class="btn primary" style="width:auto;padding:9px 16px;" onclick="closeExportModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── STATE ────────────────────────────────────────────────────────────────────
+const LINE_COLORS = ['#c0392b','#2980b9','#27ae60','#d4ac0d','#8e44ad','#e67e22','#16a085','#884ea0'];
+let stops=[], lines=[], connections=[];
+let nextStopId=1, nextLineId=1;
+let vx=0, vy=0, vscale=1;
+let mode='pan', connectFrom=null;
+let isPanning=false, panSX, panSY, panVX, panVY;
+let pinchDist=null, pinchMX, pinchMY;
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2400);
+}
+function mapRect(){ return document.getElementById('map-area').getBoundingClientRect(); }
+function w2s(wx,wz){ const r=mapRect(); return {x:r.width/2+(wx-vx)*vscale, y:r.height/2+(wz-vy)*vscale}; }
+function s2w(sx,sy){ const r=mapRect(); return {x:(sx-r.width/2)/vscale+vx, z:(sy-r.height/2)/vscale+vy}; }
+function lineColor(id){ return (lines.find(l=>l.id===id)||{}).color||'#888'; }
+function dist(a,b){ return Math.hypot(a.x-b.x,a.z-b.z); }
+function sid(name){ return (stops.find(s=>s.name===name)||{}).id; }
+
+// ─── DRAWER ───────────────────────────────────────────────────────────────────
+function toggleDrawer(){
+  const d=document.getElementById('drawer');
+  d.classList.toggle('open');
+}
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>{
+    b.classList.toggle('active',['stations','add','lines'][i]===name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+// ─── DATA ─────────────────────────────────────────────────────────────────────
+function addStop(){
+  const name=document.getElementById('stop-name').value.trim();
+  const x=parseFloat(document.getElementById('stop-x').value);
+  const z=parseFloat(document.getElementById('stop-z').value);
+  const lineId=document.getElementById('stop-line').value?parseInt(document.getElementById('stop-line').value):null;
+  if(!name){toast('A station must bear a name.');return;}
+  if(isNaN(x)||isNaN(z)){toast('Coordinates must be numbers.');return;}
+  stops.push({id:nextStopId++,name,x,z,lineId});
+  document.getElementById('stop-name').value='';
+  document.getElementById('stop-x').value='';
+  document.getElementById('stop-z').value='';
+  render(); switchTab('stations');
+  toast(`"${name}" placed on the map.`);
+}
+function addLine(){
+  const name=document.getElementById('new-line-name').value.trim();
+  if(!name){toast('Name thy line.');return;}
+  lines.push({id:nextLineId++,name,color:LINE_COLORS[lines.length%LINE_COLORS.length]});
+  document.getElementById('new-line-name').value='';
+  render(); toast(`Line "${name}" established.`);
+}
+function deleteStop(id){
+  stops=stops.filter(s=>s.id!==id);
+  connections=connections.filter(c=>c.from!==id&&c.to!==id);
+  if(connectFrom===id) connectFrom=null;
+  render();
+}
+function deleteLine(id){
+  lines=lines.filter(l=>l.id!==id);
+  stops.forEach(s=>{if(s.lineId===id)s.lineId=null;});
+  connections=connections.filter(c=>c.lineId!==id);
+  render();
+}
+function setMode(m){
+  mode=m; connectFrom=null;
+  ['pan','connect','delete-conn'].forEach(x=>document.getElementById('btn-'+x)?.classList.toggle('active',x===m));
+  document.getElementById('map-svg').style.cursor=m==='pan'?'grab':'crosshair';
+  if(m==='connect') toast('Tap a station to begin connecting.');
+  if(m==='delete-conn') toast('Tap a connection to sever it.');
+  renderSvg();
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function render(){ renderPanel(); renderSvg(); }
+
+function renderPanel(){
+  // Line select
+  const sel=document.getElementById('stop-line');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">— Unassigned —</option>';
+  lines.forEach(l=>{const o=document.createElement('option');o.value=l.id;o.textContent=l.name;sel.appendChild(o);});
+  sel.value=cur;
+
+  // Lines tab
+  const ll=document.getElementById('lines-list');
+  ll.innerHTML='';
+  lines.forEach(l=>{
+    const cnt=stops.filter(s=>s.lineId===l.id).length;
+    const d=document.createElement('div'); d.className='line-item';
+    d.innerHTML=`<div class="line-dot" style="background:${l.color}"></div>
+      <span class="line-name">${l.name}</span>
+      <span class="line-count">${cnt} stn</span>
+      <button class="line-delete" onclick="deleteLine(${l.id})">✕</button>`;
+    ll.appendChild(d);
+  });
+
+  // Legend
+  const leg=document.getElementById('map-legend');
+  const lb=document.getElementById('legend-lines');
+  if(lines.length){
+    leg.style.display='';
+    lb.innerHTML=lines.map(l=>`<div class="legend-line"><div class="legend-bar" style="background:${l.color}"></div><span class="legend-name">${l.name}</span></div>`).join('');
+  } else leg.style.display='none';
+
+  // Stations tab
+  const sp=document.getElementById('stops-panel');
+  sp.innerHTML='';
+  if(!stops.length){
+    sp.innerHTML='<p style="font-style:italic;color:var(--sepia-light);font-size:0.78rem;padding:10px 2px;opacity:0.7;">No stations yet…</p>';
+    return;
+  }
+  [...stops].sort((a,b)=>a.name.localeCompare(b.name)).forEach(s=>{
+    const l=lines.find(x=>x.id===s.lineId);
+    const color=l?l.color:'#888';
+    const d=document.createElement('div'); d.className='stop-item';
+    d.innerHTML=`<div class="stop-icon" style="border-color:${color};background:${color}33"></div>
+      <div class="stop-info">
+        <div class="stop-name">${s.name}</div>
+        <div class="stop-coords">X:${Math.round(s.x)} Z:${Math.round(s.z)}${l?' · '+l.name:''}</div>
+      </div>
+      <button class="stop-delete" onclick="event.stopPropagation();deleteStop(${s.id})">✕</button>`;
+    d.onclick=()=>{focusStop(s.id);};
+    sp.appendChild(d);
+  });
+}
+
+function focusStop(id){
+  const s=stops.find(x=>x.id===id); if(!s)return;
+  vx=s.x; vy=s.z; renderSvg();
+}
+
+function renderSvg(){
+  const svg=document.getElementById('map-svg');
+  const r=mapRect();
+  svg.innerHTML='';
+  svg.setAttribute('width',r.width); svg.setAttribute('height',r.height);
+
+  // Connections
+  connections.forEach((conn,idx)=>{
+    const a=stops.find(s=>s.id===conn.from), b=stops.find(s=>s.id===conn.to);
+    if(!a||!b) return;
+    const pa=w2s(a.x,a.z), pb=w2s(b.x,b.z);
+    const color=lineColor(conn.lineId);
+    const sw=Math.max(2.5,3.5*vscale);
+    const isCut=mode==='delete-conn';
+
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',pa.x); line.setAttribute('y1',pa.y);
+    line.setAttribute('x2',pb.x); line.setAttribute('y2',pb.y);
+    line.setAttribute('stroke',color);
+    line.setAttribute('stroke-width', isCut?Math.max(18,22*vscale):sw);
+    line.setAttribute('stroke-linecap','round');
+    line.setAttribute('opacity', isCut?'0.4':'0.88');
+    if(isCut){
+      line.style.cursor='pointer';
+      const remove=()=>{connections.splice(idx,1);render();toast('Connection severed.');};
+      line.addEventListener('click',e=>{e.stopPropagation();remove();});
+      line.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();remove();});
+    }
+    svg.appendChild(line);
+
+    if(vscale>0.38){
+      const d=Math.round(dist(a,b));
+      const mx=(pa.x+pb.x)/2, my=(pa.y+pb.y)/2;
+      const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+      lbl.setAttribute('x',mx); lbl.setAttribute('y',my-6);
+      lbl.setAttribute('text-anchor','middle');
+      lbl.setAttribute('fill','#2c1a08'); lbl.setAttribute('font-size',Math.max(10,12*vscale));
+      lbl.setAttribute('font-family','Spectral,Georgia,serif');
+      lbl.setAttribute('font-weight','500');
+      lbl.setAttribute('paint-order','stroke');
+      lbl.setAttribute('stroke','rgba(216,196,140,0.85)'); lbl.setAttribute('stroke-width','3');
+      lbl.setAttribute('opacity','0.85');
+      lbl.textContent=d+' blk';
+      svg.appendChild(lbl);
+    }
+  });
+
+  // Stops
+  stops.forEach(stop=>{
+    const p=w2s(stop.x,stop.z);
+    const l=lines.find(x=>x.id===stop.lineId);
+    const color=l?l.color:'#c9a227';
+    const radius=Math.max(7,9*vscale);
+    const sel=connectFrom===stop.id;
+
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.style.cursor='pointer';
+
+    // Big invisible hit area for touch
+    const hit=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    hit.setAttribute('cx',p.x); hit.setAttribute('cy',p.y);
+    hit.setAttribute('r',Math.max(22,radius+14)); hit.setAttribute('fill','transparent');
+    g.appendChild(hit);
+
+    const glow=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    glow.setAttribute('cx',p.x); glow.setAttribute('cy',p.y);
+    glow.setAttribute('r',radius+5); glow.setAttribute('fill',color);
+    glow.setAttribute('opacity',sel?'0.38':'0.1');
+    g.appendChild(glow);
+
+    const outer=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    outer.setAttribute('cx',p.x); outer.setAttribute('cy',p.y);
+    outer.setAttribute('r',radius); outer.setAttribute('fill','#f2e8cc');
+    outer.setAttribute('stroke',color); outer.setAttribute('stroke-width',sel?3.5:2.5);
+    g.appendChild(outer);
+
+    const inner=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    inner.setAttribute('cx',p.x); inner.setAttribute('cy',p.y);
+    inner.setAttribute('r',radius*0.38); inner.setAttribute('fill',color);
+    g.appendChild(inner);
+
+    if(vscale>0.22){
+      const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+      lbl.setAttribute('x',p.x); lbl.setAttribute('y',p.y-radius-5);
+      lbl.setAttribute('text-anchor','middle'); lbl.setAttribute('fill','#1a0e04');
+      lbl.setAttribute('font-size',Math.max(11,13*vscale));
+      lbl.setAttribute('font-family','Spectral,Georgia,serif');
+      lbl.setAttribute('font-weight','500');
+      lbl.setAttribute('paint-order','stroke'); lbl.setAttribute('stroke','rgba(216,196,140,0.9)');
+      lbl.setAttribute('stroke-width','4'); lbl.setAttribute('stroke-linejoin','round');
+      lbl.textContent=stop.name;
+      g.appendChild(lbl);
+    }
+
+    const onTap=()=>handleStopClick(stop.id);
+    g.addEventListener('click',e=>{e.stopPropagation();onTap();});
+    g.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();onTap();});
+    svg.appendChild(g);
+  });
+}
+
+function handleStopClick(id){
+  if(mode==='pan'){focusStop(id);return;}
+  if(mode==='connect'){
+    if(!connectFrom){connectFrom=id;toast('Now tap the destination station.');renderSvg();}
+    else if(connectFrom===id){connectFrom=null;renderSvg();}
+    else{
+      const lineId=lines.length?lines[lines.length-1].id:null;
+      const exists=connections.find(c=>(c.from===connectFrom&&c.to===id)||(c.from===id&&c.to===connectFrom));
+      if(!exists){
+        connections.push({from:connectFrom,to:id,lineId});
+        const a=stops.find(s=>s.id===connectFrom),b=stops.find(s=>s.id===id);
+        toast(`Connected! ~${Math.round(dist(a,b))} blocks.`);
+      } else toast('Already connected.');
+      connectFrom=null; render();
+    }
+  }
+}
+
+// ─── VIEWPORT ─────────────────────────────────────────────────────────────────
+function zoom(factor,cx,cy){
+  const r=mapRect();
+  cx=cx??r.width/2; cy=cy??r.height/2;
+  const fw=s2w(cx,cy);
+  vscale=Math.min(6,Math.max(0.06,vscale*factor));
+  vx=fw.x-(cx-r.width/2)/vscale;
+  vy=fw.z-(cy-r.height/2)/vscale;
+  renderSvg();
+}
+function resetView(){
+  if(!stops.length){vx=0;vy=0;vscale=1;renderSvg();return;}
+  const xs=stops.map(s=>s.x),zs=stops.map(s=>s.z);
+  vx=(Math.min(...xs)+Math.max(...xs))/2;
+  vy=(Math.min(...zs)+Math.max(...zs))/2;
+  const r=mapRect();
+  const rx=Math.max(...xs)-Math.min(...xs)+300,rz=Math.max(...zs)-Math.min(...zs)+300;
+  vscale=Math.min(4,Math.max(0.06,Math.min(r.width/rx,r.height/rz)*0.82));
+  renderSvg();
+}
+
+// ─── POINTER / TOUCH ──────────────────────────────────────────────────────────
+const mapEl=document.getElementById('map-area');
+
+mapEl.addEventListener('mousedown',e=>{
+  if(mode!=='pan')return;
+  isPanning=true; panSX=e.clientX; panSY=e.clientY; panVX=vx; panVY=vy;
+  document.getElementById('map-svg').style.cursor='grabbing';
+});
+window.addEventListener('mousemove',e=>{
+  const r=mapRect();
+  const w=s2w(e.clientX-r.left,e.clientY-r.top);
+  document.getElementById('coord-display').textContent=`X: ${Math.round(w.x)} · Z: ${Math.round(w.z)}`;
+  if(!isPanning)return;
+  vx=panVX-(e.clientX-panSX)/vscale;
+  vy=panVY-(e.clientY-panSY)/vscale;
+  renderSvg();
+});
+window.addEventListener('mouseup',()=>{
+  isPanning=false;
+  document.getElementById('map-svg').style.cursor=mode==='pan'?'grab':'crosshair';
+});
+mapEl.addEventListener('wheel',e=>{e.preventDefault();zoom(e.deltaY<0?1.1:0.9);},{passive:false});
+
+// Touch
+mapEl.addEventListener('touchstart',e=>{
+  if(e.touches.length===1&&mode==='pan'){
+    isPanning=true;
+    panSX=e.touches[0].clientX; panSY=e.touches[0].clientY; panVX=vx; panVY=vy; pinchDist=null;
+  } else if(e.touches.length===2){
+    isPanning=false;
+    pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    const r=mapRect();
+    pinchMX=(e.touches[0].clientX+e.touches[1].clientX)/2-r.left;
+    pinchMY=(e.touches[0].clientY+e.touches[1].clientY)/2-r.top;
+  }
+},{passive:true});
+
+mapEl.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(e.touches.length===2&&pinchDist){
+    const nd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    const r=mapRect();
+    const mx=(e.touches[0].clientX+e.touches[1].clientX)/2-r.left;
+    const my=(e.touches[0].clientY+e.touches[1].clientY)/2-r.top;
+    zoom(nd/pinchDist,mx,my);
+    pinchDist=nd; pinchMX=mx; pinchMY=my;
+  } else if(isPanning&&e.touches.length===1){
+    vx=panVX-(e.touches[0].clientX-panSX)/vscale;
+    vy=panVY-(e.touches[0].clientY-panSY)/vscale;
+    renderSvg();
+  }
+},{passive:false});
+
+mapEl.addEventListener('touchend',e=>{
+  if(e.touches.length<2) pinchDist=null;
+  if(e.touches.length===0) isPanning=false;
+},{passive:true});
+
+// ─── JPG EXPORT ───────────────────────────────────────────────────────────────
+function exportJpg(){
+  toast('Preparing map image…');
+  const mapArea = document.getElementById('map-area');
+  const svg = document.getElementById('map-svg');
+  const r = mapArea.getBoundingClientRect();
+  const W = Math.round(r.width), H = Math.round(r.height);
+
+  // Serialize SVG
+  const svgClone = svg.cloneNode(true);
+  svgClone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  svgClone.setAttribute('width', W);
+  svgClone.setAttribute('height', H);
+  const svgStr = new XMLSerializer().serializeToString(svgClone);
+  const svgBlob = new Blob([svgStr], {type:'image/svg+xml;charset=utf-8'});
+  const svgUrl = URL.createObjectURL(svgBlob);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W * 2; canvas.height = H * 2; // 2x for crispness
+  const ctx = canvas.getContext('2d');
+  ctx.scale(2, 2);
+
+  // Draw parchment background
+  const bg = ctx.createRadialGradient(W*0.15,H*0.2,0,W*0.15,H*0.2,W*0.6);
+  bg.addColorStop(0,'#c8ad72'); bg.addColorStop(0.5,'#c8b483'); bg.addColorStop(1,'#b89c6a');
+  ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+
+  // Subtle grid lines
+  ctx.strokeStyle = 'rgba(100,70,30,0.08)'; ctx.lineWidth = 0.5;
+  for(let x=0;x<W;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=60){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  // Vignette edges
+  const vig = ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.3,W/2,H/2,Math.max(W,H)*0.75);
+  vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(80,50,10,0.35)');
+  ctx.fillStyle = vig; ctx.fillRect(0,0,W,H);
+
+  // Draw SVG map on top
+  const img = new Image();
+  img.onload = () => {
+    ctx.drawImage(img, 0, 0, W, H);
+    URL.revokeObjectURL(svgUrl);
+
+    // Watermark title
+    ctx.font = 'bold 13px Cinzel, Georgia, serif';
+    ctx.fillStyle = 'rgba(44,26,8,0.45)';
+    ctx.textAlign = 'left';
+    ctx.fillText('Cartercraft — Underground Cartographer', 14, H - 12);
+
+    // Download
+    const link = document.createElement('a');
+    link.download = 'cartercraft-subway-map.jpg';
+    link.href = canvas.toDataURL('image/jpeg', 0.92);
+    link.click();
+    toast('Map saved as JPG!');
+  };
+  img.onerror = () => { URL.revokeObjectURL(svgUrl); toast('Export failed — try a different browser.'); };
+  img.src = svgUrl;
+}
+
+// ─── EXPORT / IMPORT ──────────────────────────────────────────────────────────
+function openExportModal(){
+  document.getElementById('export-text').value=JSON.stringify({stops,lines,connections,nextStopId,nextLineId},null,2);
+  document.getElementById('export-modal').classList.add('open');
+}
+function closeExportModal(){ document.getElementById('export-modal').classList.remove('open'); }
+function copyExport(){ navigator.clipboard.writeText(document.getElementById('export-text').value); toast('Copied!'); }
+function importData(){
+  try{
+    const d=JSON.parse(document.getElementById('import-text').value);
+    stops=d.stops||[]; lines=d.lines||[]; connections=d.connections||[];
+    nextStopId=d.nextStopId||stops.length+1; nextLineId=d.nextLineId||lines.length+1;
+    closeExportModal(); render(); resetView(); toast('Map restored!');
+  } catch{ toast('Invalid data — could not parse.'); }
+}
+
+// Keyboard (desktop)
+window.addEventListener('keydown',e=>{
+  if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;
+  if(e.key==='p') setMode('pan');
+  if(e.key==='c') setMode('connect');
+  if(e.key==='x') setMode('delete-conn');
+  if(e.key==='Escape'){connectFrom=null;renderSvg();}
+  if(e.key==='+'||e.key==='=') zoom(1.2);
+  if(e.key==='-') zoom(0.8);
+  if(e.key==='r') resetView();
+});
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+const worldStops=[
+  {name:"Alan's Testing Grounds",x:1380,z:192},{name:"Beach House",x:1158,z:-85},
+  {name:"Birch Giant",x:698,z:-14},{name:"Castle Gates",x:940,z:-6},
+  {name:"Dark Village",x:1143,z:-318},{name:"Dragon Ring",x:1223,z:-224},
+  {name:"Frog Temple",x:932,z:479},{name:"Froghouse",x:731,z:52},
+  {name:"Giant Tree",x:1103,z:33},{name:"Hobbitton",x:1035,z:138},
+  {name:"Home",x:936,z:624},{name:"Juliaville Aquarium",x:909,z:381},
+  {name:"Knight's Den",x:940,z:-68},{name:"Purple Temple",x:633,z:36},
+  {name:"Rosieville",x:1725,z:-261},{name:"Tardis",x:1417,z:-217},
+  {name:"The Red Castle",x:999,z:-123},{name:"The Wastelands",x:1646,z:-478},
+  {name:"Tower Walk",x:1099,z:-223},{name:"Vader Plaza",x:1209,z:-360},
+  {name:"Valley Pond",x:1398,z:-481},{name:"Wastelands 2",x:1294,z:203},
+  {name:"Woodbridge",x:682,z:96},{name:"Farm",x:969,z:237},
+  {name:"Subway End",x:781,z:412},{name:"Crab Castle",x:774,z:-4},
+  {name:"Balloon",x:584,z:388},{name:"Darquarium",x:408,z:516},
+  {name:"Mountain House",x:926,z:825},{name:"Ice Fall",x:1022,z:1041},
+];
+worldStops.forEach(s=>stops.push({id:nextStopId++,name:s.name,x:s.x,z:s.z,lineId:null}));
+
+function wire(routeNames,lineColor,lineName){
+  lines.push({id:nextLineId++,name:lineName,color:lineColor});
+  const lid=lines[lines.length-1].id;
+  routeNames.forEach((n,i,arr)=>{
+    const s=stops.find(x=>x.name===n); if(s) s.lineId=lid;
+    if(i<arr.length-1){const a=sid(n),b=sid(arr[i+1]);if(a&&b)connections.push({from:a,to:b,lineId:lid});}
+  });
+}
+wire(["Valley Pond","The Wastelands","Vader Plaza","Dragon Ring","Dark Village","Tower Walk","The Red Castle","Knight's Den"],'#c0392b','Northern Line');
+wire(["Purple Temple","Woodbridge","Birch Giant","Crab Castle","Froghouse","Castle Gates","Giant Tree","Hobbitton","Farm","Wastelands 2"],'#2980b9','Central Line');
+wire(["Balloon","Darquarium","Subway End","Juliaville Aquarium","Frog Temple","Home","Mountain House","Ice Fall"],'#27ae60','Southern Line');
+wire(["Beach House","Giant Tree","Alan's Testing Grounds","Tardis","Rosieville"],'#d4ac0d','Eastern Express');
+
+render();
+resetView();
+</script>
+</body>
+</html>
